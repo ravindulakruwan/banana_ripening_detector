@@ -2,51 +2,63 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Banana Ripening Detection</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <!-- Tailwind CSS -->
+  <title>🍌 Fruit Ripening Detection</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <!-- Tailwind CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @keyframes slide-in-right {
+      from { transform: translateX(100%); opacity: 0; }
+      to   { transform: translateX(0);   opacity: 1; }
+    }
+    .animate-slide-in-right {
+      animation: slide-in-right 0.4s ease-out;
+      transition: opacity 0.4s ease-in;
+    }
+  </style>
 </head>
-<body class="bg-gray-900 text-white font-sans min-h-screen flex flex-col items-center p-6 relative">
+<body class="bg-gray-900 text-white font-sans min-h-screen p-4 relative">
 
-  <!-- Toast Container -->
-  <div id="toast-container" class="fixed top-4 right-4 space-y-2 z-50"></div>
+  <!-- Toast Notification Container -->
+  <div id="toast-container" class="fixed top-4 right-4 z-50 space-y-2"></div>
 
+  <!-- Header -->
   <header class="text-center mb-6">
-    <h1 class="text-4xl font-bold text-yellow-400">Banana Ripening Detection</h1>
-    <p class="text-gray-400 mt-2">Real-time AI detection using Roboflow</p>
+    <h1 class="text-3xl md:text-4xl font-bold text-yellow-400">Banana Ripening Detection</h1>
+    <p class="text-gray-400 mt-2 text-sm md:text-base">Real-time AI detection using Roboflow</p>
   </header>
 
-  <main class="flex flex-col lg:flex-row gap-6 items-start w-full max-w-7xl">
-    <!-- Webcam Feed -->
-    <div class="relative w-[640px] h-[480px] border-4 border-yellow-400 rounded-lg overflow-hidden">
-      <video id="video" autoplay playsinline class="absolute top-0 left-0 w-full h-full object-cover"></video>
-      <canvas id="canvas" class="absolute top-0 left-0 w-full h-full"></canvas>
+  <!-- Main Content -->
+  <main class="flex flex-col lg:flex-row gap-6 items-start max-w-7xl mx-auto">
+    
+    <!-- Video & Canvas Section -->
+    <div class="relative w-full max-w-[640px] aspect-video border-4 border-yellow-400 rounded-lg overflow-hidden">
+      <video id="video" autoplay playsinline class="absolute w-full h-full object-cover"></video>
+      <canvas id="canvas" class="absolute w-full h-full"></canvas>
     </div>
 
-    <!-- Detection Panel -->
-    <div class="w-full lg:w-[300px] space-y-6">
+    <!-- Sidebar Section -->
+    <div class="w-full lg:w-[320px] space-y-6">
       <!-- Current Detections -->
       <section class="bg-gray-800 p-4 rounded-lg border border-yellow-400">
         <h2 class="text-xl font-semibold text-yellow-400 mb-2">🧠 Current Detections</h2>
         <ul id="prediction-list" class="space-y-2 text-sm"></ul>
       </section>
 
-      <!-- History Log -->
+      <!-- Detection History -->
       <section class="bg-gray-800 p-4 rounded-lg border border-green-500 max-h-[250px] overflow-y-auto">
         <h2 class="text-xl font-semibold text-green-400 mb-2">📜 Detection History</h2>
         <ul id="history-list" class="space-y-2 text-xs"></ul>
       </section>
 
-      <!-- Buttons -->
-      <div class="flex gap-3">
+      <!-- Action Buttons -->
+      <div class="flex flex-col sm:flex-row gap-3">
         <button id="download-btn"
-          class="bg-green-500 hover:bg-green-600 text-white font-semibold py-2 px-4 rounded shadow transition w-full">
+          class="bg-green-500 hover:bg-green-600 text-white font-semibold py-2 px-4 rounded shadow w-full">
           ⬇️ Download History
         </button>
-
         <button id="reset-btn"
-          class="bg-red-500 hover:bg-red-600 text-white font-semibold py-2 px-4 rounded shadow transition w-full">
+          class="bg-red-500 hover:bg-red-600 text-white font-semibold py-2 px-4 rounded shadow w-full">
           🗑️ Reset History
         </button>
       </div>
@@ -63,25 +75,21 @@ const downloadBtn = document.getElementById('download-btn');
 const resetBtn = document.getElementById('reset-btn');
 const toastContainer = document.getElementById('toast-container');
 
-// Start webcam
+// Start Webcam
 navigator.mediaDevices.getUserMedia({ video: true })
   .then(stream => {
     video.srcObject = stream;
   })
-  .catch(err => {
-    console.error("Webcam error:", err);
-  });
+  .catch(err => console.error("Webcam error:", err));
 
-// Perform detection every 5 seconds
+// Run detection every 5 seconds
 setInterval(async () => {
   ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
   const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg'));
   const reader = new FileReader();
 
   reader.onloadend = () => {
     const base64Image = reader.result.replace(/^data:image\/jpeg;base64,/, '');
-
     fetch("https://serverless.roboflow.com/fruit-ripening-process/2?api_key=Ur7hXZ8pVPs9vpScKv7w", {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -95,11 +103,8 @@ setInterval(async () => {
       speakDetections(data.predictions);
       showAlerts(data.predictions);
     })
-    .catch(err => {
-      console.error("Detection error:", err);
-    });
+    .catch(err => console.error("Detection error:", err));
   };
-
   reader.readAsDataURL(blob);
 }, 5000);
 
@@ -108,18 +113,16 @@ function drawPredictions(predictions) {
   ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
   predictions.forEach(pred => {
     const { x, y, width, height, class: label, confidence } = pred;
-
     ctx.strokeStyle = "#00FF00";
     ctx.lineWidth = 2;
     ctx.strokeRect(x - width / 2, y - height / 2, width, height);
-
     ctx.fillStyle = "#00FF00";
     ctx.font = "16px Arial";
     ctx.fillText(`${label} (${(confidence * 100).toFixed(1)}%)`, x - width / 2, y - height / 2 - 8);
   });
 }
 
-// Update summary
+// Update Current Detections
 function updatePredictionList(predictions) {
   predictionList.innerHTML = '';
   predictions.forEach(pred => {
@@ -130,7 +133,7 @@ function updatePredictionList(predictions) {
   });
 }
 
-// Add to history
+// Update History
 function updateHistory(predictions) {
   const timestamp = new Date().toLocaleTimeString();
   predictions.forEach(pred => {
@@ -138,22 +141,24 @@ function updateHistory(predictions) {
     li.className = "bg-gray-700 px-3 py-1 rounded border-l-4 border-green-500";
     li.textContent = `[${timestamp}] ${pred.class.toUpperCase()} - ${(pred.confidence * 100).toFixed(1)}%`;
     historyList.insertBefore(li, historyList.firstChild);
-    if (historyList.children.length > 50) historyList.removeChild(historyList.lastChild);
+    if (historyList.children.length > 50) {
+      historyList.removeChild(historyList.lastChild);
+    }
   });
 }
 
-// Text-to-speech
+// Text-to-Speech Alerts
 function speakDetections(predictions) {
   predictions.forEach(pred => {
-    const message = new SpeechSynthesisUtterance(
+    const msg = new SpeechSynthesisUtterance(
       `${pred.class} detected, ${(pred.confidence * 100).toFixed(0)} percent confidence`
     );
-    message.lang = "en-US";
-    speechSynthesis.speak(message);
+    msg.lang = "en-US";
+    speechSynthesis.speak(msg);
   });
 }
 
-// Toast alert
+// Visual Toast Alerts
 function showAlerts(predictions) {
   predictions.forEach(pred => {
     const toast = document.createElement('div');
@@ -168,19 +173,19 @@ function showAlerts(predictions) {
   });
 }
 
-// Download as .txt
+// Download .txt history
 downloadBtn.addEventListener('click', () => {
-  const entries = Array.from(historyList.children);
-  if (entries.length === 0) return alert("No detection history yet.");
-  const text = entries.map(item => item.textContent).join('\n');
+  const items = Array.from(historyList.children);
+  if (!items.length) return alert("No history to download.");
+  const text = items.map(li => li.textContent).join('\n');
   const blob = new Blob([text], { type: "text/plain" });
   const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `detection-history-${new Date().toISOString().slice(0, 10)}.txt`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `detection-history-${new Date().toISOString().slice(0, 10)}.txt`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
   URL.revokeObjectURL(url);
 });
 
