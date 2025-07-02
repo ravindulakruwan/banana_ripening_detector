@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <title>🍌 Fruit Ripening Detection</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <!-- Tailwind CDN -->
+  <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     @keyframes slide-in-right {
@@ -19,7 +19,7 @@
 </head>
 <body class="bg-gray-900 text-white font-sans min-h-screen p-4 relative">
 
-  <!-- Toast Notification Container -->
+  <!-- Toast Notifications -->
   <div id="toast-container" class="fixed top-4 right-4 z-50 space-y-2"></div>
 
   <!-- Header -->
@@ -28,24 +28,37 @@
     <p class="text-gray-400 mt-2 text-sm md:text-base">Real-time AI detection using Roboflow</p>
   </header>
 
-  <!-- Main Content -->
+  <!-- Main Layout -->
   <main class="flex flex-col lg:flex-row gap-6 items-start max-w-7xl mx-auto">
-    
-    <!-- Video & Canvas Section -->
+
+    <!-- Video Section -->
     <div class="relative w-full max-w-[640px] aspect-video border-4 border-yellow-400 rounded-lg overflow-hidden">
       <video id="video" autoplay playsinline class="absolute w-full h-full object-cover"></video>
       <canvas id="canvas" class="absolute w-full h-full"></canvas>
     </div>
 
-    <!-- Sidebar Section -->
+    <!-- Sidebar -->
     <div class="w-full lg:w-[320px] space-y-6">
-      <!-- Current Detections -->
+
+      <!-- Controls -->
+      <div class="flex flex-col sm:flex-row gap-3 justify-between">
+        <button id="switch-camera-btn"
+          class="bg-indigo-500 hover:bg-indigo-600 text-white text-sm font-medium px-4 py-2 rounded shadow w-full">
+          🔄 Switch Camera
+        </button>
+        <button id="toggle-flash-btn"
+          class="bg-yellow-500 hover:bg-yellow-600 text-white text-sm font-medium px-4 py-2 rounded shadow w-full hidden">
+          🔦 Toggle Flashlight
+        </button>
+      </div>
+
+      <!-- Predictions -->
       <section class="bg-gray-800 p-4 rounded-lg border border-yellow-400">
         <h2 class="text-xl font-semibold text-yellow-400 mb-2">🧠 Current Detections</h2>
         <ul id="prediction-list" class="space-y-2 text-sm"></ul>
       </section>
 
-      <!-- Detection History -->
+      <!-- History -->
       <section class="bg-gray-800 p-4 rounded-lg border border-green-500 max-h-[250px] overflow-y-auto">
         <h2 class="text-xl font-semibold text-green-400 mb-2">📜 Detection History</h2>
         <ul id="history-list" class="space-y-2 text-xs"></ul>
@@ -66,21 +79,73 @@
   </main>
 
   <script>
-    const video = document.getElementById('video');
+    let currentCamera = 'environment'; // user or environment
+let stream = null;
+let track = null;
+let torchOn = false;
+
+const video = document.getElementById('video');
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
 const predictionList = document.getElementById('prediction-list');
 const historyList = document.getElementById('history-list');
 const downloadBtn = document.getElementById('download-btn');
 const resetBtn = document.getElementById('reset-btn');
+const switchCameraBtn = document.getElementById('switch-camera-btn');
+const toggleFlashBtn = document.getElementById('toggle-flash-btn');
 const toastContainer = document.getElementById('toast-container');
 
-// Start Webcam
-navigator.mediaDevices.getUserMedia({ video: true })
-  .then(stream => {
+// Start camera with facing mode
+async function startCamera(facingMode = 'environment') {
+  if (stream) stream.getTracks().forEach(t => t.stop());
+  torchOn = false;
+  toggleFlashBtn.classList.add('hidden');
+
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode, width: 640, height: 480 },
+      audio: false
+    });
+
     video.srcObject = stream;
-  })
-  .catch(err => console.error("Webcam error:", err));
+
+    // Set track and check torch support
+    track = stream.getVideoTracks()[0];
+    const capabilities = track.getCapabilities();
+    if (facingMode === 'environment' && capabilities.torch) {
+      toggleFlashBtn.classList.remove('hidden');
+    }
+  } catch (err) {
+    console.error('Camera error:', err);
+    alert('Camera access failed.');
+  }
+}
+
+// Toggle flashlight
+async function toggleFlashlight() {
+  if (!track) return;
+  try {
+    torchOn = !torchOn;
+    await track.applyConstraints({
+      advanced: [{ torch: torchOn }]
+    });
+  } catch (err) {
+    console.warn("Torch not supported:", err);
+    alert("Torch not supported on this device.");
+  }
+}
+
+// Initial load
+startCamera(currentCamera);
+
+// Switch camera
+switchCameraBtn.addEventListener('click', () => {
+  currentCamera = currentCamera === 'user' ? 'environment' : 'user';
+  startCamera(currentCamera);
+});
+
+// Flash toggle button
+toggleFlashBtn.addEventListener('click', toggleFlashlight);
 
 // Run detection every 5 seconds
 setInterval(async () => {
@@ -105,10 +170,11 @@ setInterval(async () => {
     })
     .catch(err => console.error("Detection error:", err));
   };
+
   reader.readAsDataURL(blob);
 }, 5000);
 
-// Draw bounding boxes
+// Draw boxes
 function drawPredictions(predictions) {
   ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
   predictions.forEach(pred => {
@@ -122,7 +188,7 @@ function drawPredictions(predictions) {
   });
 }
 
-// Update Current Detections
+// Live predictions
 function updatePredictionList(predictions) {
   predictionList.innerHTML = '';
   predictions.forEach(pred => {
@@ -133,7 +199,7 @@ function updatePredictionList(predictions) {
   });
 }
 
-// Update History
+// History
 function updateHistory(predictions) {
   const timestamp = new Date().toLocaleTimeString();
   predictions.forEach(pred => {
@@ -147,7 +213,7 @@ function updateHistory(predictions) {
   });
 }
 
-// Text-to-Speech Alerts
+// TTS
 function speakDetections(predictions) {
   predictions.forEach(pred => {
     const msg = new SpeechSynthesisUtterance(
@@ -158,14 +224,13 @@ function speakDetections(predictions) {
   });
 }
 
-// Visual Toast Alerts
+// Toast alerts
 function showAlerts(predictions) {
   predictions.forEach(pred => {
     const toast = document.createElement('div');
     toast.className = "bg-blue-700 text-white px-4 py-2 rounded shadow-lg animate-slide-in-right";
-    toast.textContent = `🔔 ${pred.class.toUpperCase()} detected - ${(pred.confidence * 100).toFixed(1)}%`;
+    toast.textContent = `🔔 ${pred.class.toUpperCase()} - ${(pred.confidence * 100).toFixed(1)}%`;
     toastContainer.appendChild(toast);
-
     setTimeout(() => {
       toast.classList.add('opacity-0');
       setTimeout(() => toast.remove(), 500);
@@ -173,25 +238,25 @@ function showAlerts(predictions) {
   });
 }
 
-// Download .txt history
+// Download
 downloadBtn.addEventListener('click', () => {
-  const items = Array.from(historyList.children);
-  if (!items.length) return alert("No history to download.");
-  const text = items.map(li => li.textContent).join('\n');
+  const entries = Array.from(historyList.children);
+  if (!entries.length) return alert("No history to download.");
+  const text = entries.map(item => item.textContent).join('\n');
   const blob = new Blob([text], { type: "text/plain" });
   const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = `detection-history-${new Date().toISOString().slice(0, 10)}.txt`;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `detection-history-${new Date().toISOString().slice(0, 10)}.txt`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
   URL.revokeObjectURL(url);
 });
 
-// Reset history
+// Reset
 resetBtn.addEventListener('click', () => {
-  if (confirm("Clear all detection history?")) {
+  if (confirm("Clear detection history?")) {
     predictionList.innerHTML = '';
     historyList.innerHTML = '';
   }
