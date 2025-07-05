@@ -2,9 +2,10 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Fresh Checker</title>
+  <title>🍌 Fruit Ripeness Detector</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <style>
     @keyframes slide-in-right {
       from { transform: translateX(100%); opacity: 0; }
@@ -17,17 +18,17 @@
 </head>
 <body class="bg-gray-900 text-white min-h-screen p-4">
 
-  <!-- Toast Alerts -->
-  <div id="toast-container" class="fixed top-4 right-4 space-y-2 z-50"></div>
+  <!-- Toasts -->
+  <div id="toast-container" class="fixed top-4 right-4 z-50 space-y-2"></div>
 
   <header class="text-center mb-6">
-    <h1 class="text-3xl font-bold text-yellow-400">Banana Ripening Detector</h1>
-    <p class="text-gray-400 mt-1 text-sm">Project By TP53 Group</p>
+    <h1 class="text-3xl font-bold text-yellow-400">🍌 Fruit Ripeness Detector</h1>
+    <p class="text-gray-400 mt-1 text-sm">Capture a photo → Detect ripeness → Download results</p>
   </header>
 
   <main class="flex flex-col lg:flex-row gap-6 max-w-7xl mx-auto items-start">
 
-    <!-- Camera Area -->
+    <!-- Camera Section -->
     <div class="w-full max-w-[640px] space-y-4">
       <div class="relative aspect-video border-4 border-yellow-400 rounded-lg overflow-hidden w-full">
         <video id="video" autoplay playsinline class="absolute w-full h-full object-cover"></video>
@@ -40,7 +41,7 @@
       </div>
     </div>
 
-    <!-- Results Sidebar -->
+    <!-- Sidebar -->
     <div class="w-full lg:w-[320px] space-y-6">
 
       <!-- Predictions -->
@@ -57,7 +58,7 @@
 
       <!-- Controls -->
       <div class="flex flex-col sm:flex-row gap-3">
-        <button id="download-btn" class="bg-green-500 hover:bg-green-600 text-white py-2 px-4 rounded w-full">⬇️ Download History</button>
+        <button id="download-btn" class="bg-green-500 hover:bg-green-600 text-white py-2 px-4 rounded w-full">⬇️ Download Image & History</button>
         <button id="reset-btn" class="bg-red-500 hover:bg-red-600 text-white py-2 px-4 rounded w-full">🗑️ Reset</button>
       </div>
     </div>
@@ -68,6 +69,8 @@
 let stream = null;
 let track = null;
 let torchOn = false;
+
+let latestImageBlob = null;
 
 const video = document.getElementById("video");
 const canvas = document.getElementById("canvas");
@@ -122,7 +125,7 @@ async function toggleFlashlight() {
   }
 }
 
-// Switch camera
+// Switch Camera
 switchBtn.addEventListener("click", () => {
   currentCamera = currentCamera === "user" ? "environment" : "user";
   startCamera(currentCamera);
@@ -142,8 +145,9 @@ captureBtn.addEventListener("click", async () => {
   video.classList.add("hidden");
 
   const blob = await new Promise(res => canvas.toBlob(res, "image/jpeg"));
-  const reader = new FileReader();
+  latestImageBlob = blob;
 
+  const reader = new FileReader();
   reader.onloadend = async () => {
     const base64Image = reader.result.replace(/^data:image\/jpeg;base64,/, '');
 
@@ -165,13 +169,13 @@ captureBtn.addEventListener("click", async () => {
     speakDetections(data.predictions);
     showAlerts(data.predictions);
 
-    // Return to camera after short delay
     setTimeout(() => startCamera(currentCamera), 2000);
   };
 
   reader.readAsDataURL(blob);
 });
 
+// Draw Predictions
 function drawPredictions(preds) {
   preds.forEach(pred => {
     const { x, y, width, height, class: label, confidence } = pred;
@@ -184,6 +188,7 @@ function drawPredictions(preds) {
   });
 }
 
+// Update UI
 function updatePredictionList(preds) {
   predictionList.innerHTML = '';
   preds.forEach(pred => {
@@ -226,23 +231,32 @@ function showAlerts(preds) {
   });
 }
 
-downloadBtn.addEventListener("click", () => {
-  const entries = [...historyList.children].map(li => li.textContent).join("\n");
-  const blob = new Blob([entries], { type: "text/plain" });
-  const url = URL.createObjectURL(blob);
+// Download Image + History
+downloadBtn.addEventListener("click", async () => {
+  if (!latestImageBlob) return alert("No captured image available!");
+
+  const historyText = [...historyList.children].map(li => li.textContent).join("\n");
+
+  const zip = new JSZip();
+  zip.file("detection-history.txt", historyText);
+  zip.file("captured-image.jpg", latestImageBlob);
+
+  const zipBlob = await zip.generateAsync({ type: "blob" });
   const a = document.createElement("a");
-  a.href = url;
-  a.download = `detection-history-${new Date().toISOString().slice(0, 10)}.txt`;
+  a.href = URL.createObjectURL(zipBlob);
+  a.download = `fruit-detection-${Date.now()}.zip`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  URL.revokeObjectURL(a.href);
 });
 
+// Reset
 resetBtn.addEventListener("click", () => {
   predictionList.innerHTML = '';
   historyList.innerHTML = '';
   ctx.clearRect(0, 0, canvas.width, canvas.height);
+  latestImageBlob = null;
 });
 
 // Start camera on load
