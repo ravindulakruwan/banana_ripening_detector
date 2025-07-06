@@ -4,8 +4,8 @@
   <meta charset="UTF-8" />
   <title>Fruit Ripeness Detector</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="theme-color" content="#111827" />
   <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#111827" />
   <link rel="icon" href="icon.png" />
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
@@ -18,57 +18,118 @@
     }
   </style>
 </head>
-<body class="bg-gray-900 text-white min-h-screen flex flex-col justify-center items-center p-6">
+<body class="bg-gray-900 text-white min-h-screen flex flex-col items-center justify-start p-4 pt-6">
 
-  <h1 class="text-3xl font-bold text-yellow-400 mb-4 text-center">
-    🍌 Fruit Ripeness Detector
-  </h1>
-  <p class="text-gray-300 mb-8 text-center max-w-md">
-    Detect fruit ripeness using your camera and AI. You can install this web app for faster access.
-  </p>
+  <h1 class="text-3xl font-bold text-yellow-400 mb-2 text-center">🍌 Fruit Ripeness Detector</h1>
+  <p class="text-gray-300 text-center mb-6 max-w-md">Use your camera to detect fruit ripeness. You can install this app for faster access.</p>
 
-  <button class="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded shadow">
-    Open Camera (Demo)
-  </button>
+  <!-- Camera Section -->
+  <div class="w-full max-w-md bg-gray-800 p-4 rounded-xl shadow mb-4">
+    <video id="video" class="w-full rounded" autoplay playsinline></video>
+    <div class="flex justify-between items-center mt-4">
+      <button id="captureBtn" class="bg-green-600 hover:bg-green-700 px-4 py-2 rounded text-white">Capture</button>
+      <button id="switchBtn" class="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded text-white">Switch Camera</button>
+      <button id="flashBtn" class="bg-yellow-600 hover:bg-yellow-700 px-4 py-2 rounded text-white">Toggle Flash</button>
+    </div>
+  </div>
 
-  <!-- Custom Install Prompt -->
-  <div id="installPrompt" class="fixed bottom-4 left-4 right-4 max-w-md mx-auto bg-yellow-300 text-black p-4 rounded-lg shadow-lg flex justify-between items-center hidden animate-slide-up z-50">
-    <div class="text-sm font-medium">📲 Install this app on your device?</div>
+  <canvas id="canvas" class="hidden"></canvas>
+  <div id="result" class="text-center mt-4 text-lg font-medium text-green-400"></div>
+
+  <!-- Install Recommendation Popup -->
+  <div id="installBanner" class="fixed bottom-4 left-4 right-4 max-w-sm mx-auto bg-yellow-300 text-black p-4 rounded-lg shadow-lg flex justify-between items-center hidden animate-slide-up z-50">
+    <span class="text-sm font-medium">📲 Install this app on your device?</span>
     <button id="installBtn" class="ml-4 bg-black text-yellow-300 px-3 py-1 rounded hover:bg-gray-800">Install</button>
   </div>
 
   <script>
-    let deferredPrompt;
-    const installPrompt = document.getElementById('installPrompt');
-    const installBtn = document.getElementById('installBtn');
+    // Camera handling
+    const video = document.getElementById("video");
+    const canvas = document.getElementById("canvas");
+    const result = document.getElementById("result");
+    const captureBtn = document.getElementById("captureBtn");
+    const switchBtn = document.getElementById("switchBtn");
+    const flashBtn = document.getElementById("flashBtn");
 
-    // Detect install eligibility
-    window.addEventListener('beforeinstallprompt', (e) => {
-      e.preventDefault(); // Stop automatic browser prompt
-      deferredPrompt = e;
-      installPrompt.classList.remove('hidden'); // Show custom popup
+    let currentStream;
+    let usingFront = false;
+    let track;
+
+    async function startCamera() {
+      if (currentStream) {
+        currentStream.getTracks().forEach(track => track.stop());
+      }
+
+      const constraints = {
+        video: {
+          facingMode: usingFront ? "user" : "environment"
+        }
+      };
+
+      try {
+        currentStream = await navigator.mediaDevices.getUserMedia(constraints);
+        video.srcObject = currentStream;
+        track = currentStream.getVideoTracks()[0];
+      } catch (err) {
+        console.error("Error accessing camera:", err);
+      }
+    }
+
+    switchBtn.addEventListener("click", () => {
+      usingFront = !usingFront;
+      startCamera();
     });
 
-    // Handle install button click
-    installBtn.addEventListener('click', async () => {
+    flashBtn.addEventListener("click", async () => {
+      if (!track) return;
+      const capabilities = track.getCapabilities();
+      if (capabilities.torch) {
+        const settings = track.getSettings();
+        track.applyConstraints({
+          advanced: [{ torch: !settings.torch }]
+        });
+      } else {
+        alert("Flash not supported on this device.");
+      }
+    });
+
+    captureBtn.addEventListener("click", () => {
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      canvas.getContext("2d").drawImage(video, 0, 0);
+      const dataURL = canvas.toDataURL("image/jpeg");
+
+      // Mock detection result (replace this with your detection API call)
+      result.textContent = "🟢 Detected: Ripe banana";
+    });
+
+    startCamera();
+  </script>
+
+  <script>
+    // PWA Install Popup
+    let deferredPrompt;
+    const banner = document.getElementById("installBanner");
+    const installBtn = document.getElementById("installBtn");
+
+    window.addEventListener("beforeinstallprompt", (e) => {
+      e.preventDefault();
+      deferredPrompt = e;
+      banner.classList.remove("hidden");
+    });
+
+    installBtn.addEventListener("click", async () => {
       if (deferredPrompt) {
-        deferredPrompt.prompt(); // Trigger browser install prompt
+        deferredPrompt.prompt();
         const result = await deferredPrompt.userChoice;
-
-        if (result.outcome === 'accepted') {
-          console.log('User accepted install');
-        } else {
-          console.log('User dismissed install');
-        }
-
-        installPrompt.classList.add('hidden');
+        console.log(result.outcome === "accepted" ? "Installed" : "Dismissed");
+        banner.classList.add("hidden");
         deferredPrompt = null;
       }
     });
 
-    // Optional: register service worker
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('service-worker.js');
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("service-worker.js");
     }
   </script>
 </body>
