@@ -2,327 +2,74 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>🍌 Fruit Ripeness Detector</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <link rel="manifest" href="manifest.json" />
-  <link rel="apple-touch-icon" href="icon.png" />
+  <title>Fruit Ripeness Detector</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="theme-color" content="#111827" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" href="icon.png" />
   <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <style>
-    @keyframes slide-in-right {
-      from { transform: translateX(100%); opacity: 0; }
-      to   { transform: translateX(0);   opacity: 1; }
+    @keyframes slide-up {
+      from { transform: translateY(100%); opacity: 0; }
+      to   { transform: translateY(0); opacity: 1; }
     }
-    .animate-slide-in-right {
-      animation: slide-in-right 0.4s ease-out;
+    .animate-slide-up {
+      animation: slide-up 0.4s ease-out;
     }
   </style>
 </head>
-<body class="bg-gray-900 text-white min-h-screen p-4">
+<body class="bg-gray-900 text-white min-h-screen flex flex-col justify-center items-center p-6">
 
-  <!-- Install Prompt Banner -->
-  <div id="installBanner" class="fixed bottom-4 left-4 right-4 mx-auto max-w-md bg-yellow-400 text-black rounded-lg shadow-lg p-4 flex justify-between items-center hidden z-50">
-    <span>📲 Install this app?</span>
-    <button id="installBtn" class="bg-black text-yellow-400 px-4 py-1 rounded hover:bg-gray-800">Install</button>
+  <h1 class="text-3xl font-bold text-yellow-400 mb-4 text-center">
+    🍌 Fruit Ripeness Detector
+  </h1>
+  <p class="text-gray-300 mb-8 text-center max-w-md">
+    Detect fruit ripeness using your camera and AI. You can install this web app for faster access.
+  </p>
+
+  <button class="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded shadow">
+    Open Camera (Demo)
+  </button>
+
+  <!-- Custom Install Prompt -->
+  <div id="installPrompt" class="fixed bottom-4 left-4 right-4 max-w-md mx-auto bg-yellow-300 text-black p-4 rounded-lg shadow-lg flex justify-between items-center hidden animate-slide-up z-50">
+    <div class="text-sm font-medium">📲 Install this app on your device?</div>
+    <button id="installBtn" class="ml-4 bg-black text-yellow-300 px-3 py-1 rounded hover:bg-gray-800">Install</button>
   </div>
 
-  <!-- Toasts -->
-  <div id="toast-container" class="fixed top-4 right-4 z-50 space-y-2"></div>
-
-  <header class="text-center mb-6">
-    <h1 class="text-3xl font-bold text-yellow-400">🍌 Fruit Ripeness Detector</h1>
-    <p class="text-gray-400 mt-1 text-sm">Capture a photo → Detect ripeness → Download results</p>
-  </header>
-
-  <main class="flex flex-col lg:flex-row gap-6 max-w-7xl mx-auto items-start">
-
-    <!-- Camera -->
-    <div class="w-full max-w-[640px] space-y-4">
-      <div class="relative aspect-video border-4 border-yellow-400 rounded-lg overflow-hidden w-full">
-        <video id="video" autoplay playsinline class="absolute w-full h-full object-cover"></video>
-        <canvas id="canvas" class="absolute w-full h-full hidden"></canvas>
-      </div>
-      <div class="flex flex-wrap gap-3">
-        <button id="switch-camera-btn" class="bg-indigo-500 hover:bg-indigo-600 text-white px-4 py-2 rounded w-full sm:w-auto">🔄 Switch Camera</button>
-        <button id="toggle-flash-btn" class="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded w-full sm:w-auto hidden">🔦 Toggle Flashlight</button>
-        <button id="capture-btn" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded w-full sm:w-auto">📸 Capture & Detect</button>
-      </div>
-    </div>
-
-    <!-- Results & History -->
-    <div class="w-full lg:w-[320px] space-y-6">
-
-      <section class="bg-gray-800 p-4 rounded border border-yellow-400">
-        <h2 class="text-xl font-semibold text-yellow-400 mb-2">🧠 Predictions</h2>
-        <ul id="prediction-list" class="space-y-2 text-sm"></ul>
-      </section>
-
-      <section class="bg-gray-800 p-4 rounded border border-green-500 max-h-[250px] overflow-y-auto">
-        <h2 class="text-xl font-semibold text-green-400 mb-2">📜 Detection History</h2>
-        <ul id="history-list" class="space-y-2 text-xs"></ul>
-      </section>
-
-      <div class="flex flex-col sm:flex-row gap-3">
-        <button id="download-btn" class="bg-green-500 hover:bg-green-600 text-white py-2 px-4 rounded w-full">⬇️ Download Image & History</button>
-        <button id="reset-btn" class="bg-red-500 hover:bg-red-600 text-white py-2 px-4 rounded w-full">🗑️ Reset</button>
-      </div>
-    </div>
-  </main>
-
-<!-- manifest.json -->
   <script>
-    {
-  "name": "Fruit Ripeness Detector",
-  "short_name": "FruitDetector",
-  "start_url": ".",
-  "display": "standalone",
-  "background_color": "#111827",
-  "theme_color": "#111827",
-  "icons": [
-    {
-      "src": "icon.png",
-      "sizes": "192x192",
-      "type": "image/png"
-    },
-    {
-      "src": "icon.png",
-      "sizes": "512x512",
-      "type": "image/png"
-    }
-  ]
-}
-  </script>
+    let deferredPrompt;
+    const installPrompt = document.getElementById('installPrompt');
+    const installBtn = document.getElementById('installBtn');
 
-<!-- script.js -->
-  <script>
-    let currentCamera = 'environment';
-let stream = null;
-let track = null;
-let torchOn = false;
-let latestImageBlob = null;
-
-const video = document.getElementById("video");
-const canvas = document.getElementById("canvas");
-const ctx = canvas.getContext("2d");
-
-const installBanner = document.getElementById("installBanner");
-const installBtn = document.getElementById("installBtn");
-
-const switchBtn = document.getElementById("switch-camera-btn");
-const flashBtn = document.getElementById("toggle-flash-btn");
-const captureBtn = document.getElementById("capture-btn");
-const toastContainer = document.getElementById("toast-container");
-
-const predictionList = document.getElementById("prediction-list");
-const historyList = document.getElementById("history-list");
-const downloadBtn = document.getElementById("download-btn");
-const resetBtn = document.getElementById("reset-btn");
-
-// PWA INSTALL PROMPT
-let deferredPrompt = null;
-window.addEventListener("beforeinstallprompt", (e) => {
-  e.preventDefault();
-  deferredPrompt = e;
-  installBanner.classList.remove("hidden");
-});
-
-installBtn.addEventListener("click", async () => {
-  if (deferredPrompt) {
-    deferredPrompt.prompt();
-    const { outcome } = await deferredPrompt.userChoice;
-    if (outcome === "accepted") installBanner.classList.add("hidden");
-    deferredPrompt = null;
-  }
-});
-
-// Start Camera
-async function startCamera(facingMode = 'environment') {
-  if (stream) stream.getTracks().forEach(t => t.stop());
-  flashBtn.classList.add("hidden");
-  torchOn = false;
-
-  try {
-    stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode, width: 640, height: 480 },
-      audio: false
+    // Detect install eligibility
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault(); // Stop automatic browser prompt
+      deferredPrompt = e;
+      installPrompt.classList.remove('hidden'); // Show custom popup
     });
 
-    video.srcObject = stream;
-    track = stream.getVideoTracks()[0];
+    // Handle install button click
+    installBtn.addEventListener('click', async () => {
+      if (deferredPrompt) {
+        deferredPrompt.prompt(); // Trigger browser install prompt
+        const result = await deferredPrompt.userChoice;
 
-    const caps = track.getCapabilities();
-    if (facingMode === 'environment' && caps.torch) {
-      flashBtn.classList.remove("hidden");
-    }
+        if (result.outcome === 'accepted') {
+          console.log('User accepted install');
+        } else {
+          console.log('User dismissed install');
+        }
 
-    canvas.classList.add("hidden");
-    video.classList.remove("hidden");
-  } catch (err) {
-    alert("Camera error: " + err.message);
-  }
-}
-
-// Flashlight
-async function toggleFlashlight() {
-  if (!track) return;
-  try {
-    torchOn = !torchOn;
-    await track.applyConstraints({ advanced: [{ torch: torchOn }] });
-  } catch (err) {
-    alert("Flashlight not supported.");
-  }
-}
-
-// Camera Controls
-switchBtn.addEventListener("click", () => {
-  currentCamera = currentCamera === "user" ? "environment" : "user";
-  startCamera(currentCamera);
-});
-
-flashBtn.addEventListener("click", toggleFlashlight);
-
-// Capture + Detect
-captureBtn.addEventListener("click", async () => {
-  if (!track) return;
-
-  canvas.width = video.videoWidth;
-  canvas.height = video.videoHeight;
-  ctx.drawImage(video, 0, 0);
-
-  canvas.classList.remove("hidden");
-  video.classList.add("hidden");
-
-  const blob = await new Promise(res => canvas.toBlob(res, "image/jpeg"));
-  latestImageBlob = blob;
-
-  const reader = new FileReader();
-  reader.onloadend = async () => {
-    const base64Image = reader.result.replace(/^data:image\/jpeg;base64,/, '');
-
-    if (torchOn) {
-      await track.applyConstraints({ advanced: [{ torch: false }] });
-      torchOn = false;
-    }
-
-    const res = await fetch("https://serverless.roboflow.com/fruit-ripening-process/2?api_key=Ur7hXZ8pVPs9vpScKv7w", {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: base64Image
+        installPrompt.classList.add('hidden');
+        deferredPrompt = null;
+      }
     });
 
-    const data = await res.json();
-    drawPredictions(data.predictions);
-    updatePredictionList(data.predictions);
-    updateHistory(data.predictions);
-    speakDetections(data.predictions);
-    showAlerts(data.predictions);
-
-    setTimeout(() => startCamera(currentCamera), 2000);
-  };
-
-  reader.readAsDataURL(blob);
-});
-
-// Drawing + UI
-function drawPredictions(preds) {
-  preds.forEach(pred => {
-    const { x, y, width, height, class: label, confidence } = pred;
-    ctx.strokeStyle = "#00FF00";
-    ctx.lineWidth = 2;
-    ctx.strokeRect(x - width / 2, y - height / 2, width, height);
-    ctx.fillStyle = "#00FF00";
-    ctx.font = "16px Arial";
-    ctx.fillText(`${label} (${(confidence * 100).toFixed(1)}%)`, x - width / 2, y - height / 2 - 8);
-  });
-}
-
-function updatePredictionList(preds) {
-  predictionList.innerHTML = '';
-  preds.forEach(pred => {
-    const li = document.createElement("li");
-    li.className = "bg-gray-700 px-3 py-1 rounded border-l-4 border-yellow-400";
-    li.textContent = `${pred.class.toUpperCase()} - ${(pred.confidence * 100).toFixed(1)}%`;
-    predictionList.appendChild(li);
-  });
-}
-
-function updateHistory(preds) {
-  const time = new Date().toLocaleTimeString();
-  preds.forEach(pred => {
-    const li = document.createElement("li");
-    li.className = "bg-gray-700 px-3 py-1 rounded border-l-4 border-green-500";
-    li.textContent = `[${time}] ${pred.class.toUpperCase()} - ${(pred.confidence * 100).toFixed(1)}%`;
-    historyList.prepend(li);
-    if (historyList.children.length > 50) historyList.removeChild(historyList.lastChild);
-  });
-}
-
-function speakDetections(preds) {
-  preds.forEach(pred => {
-    const msg = new SpeechSynthesisUtterance(`${pred.class} detected, ${(pred.confidence * 100).toFixed(0)} percent`);
-    msg.lang = "en-US";
-    speechSynthesis.speak(msg);
-  });
-}
-
-function showAlerts(preds) {
-  preds.forEach(pred => {
-    const toast = document.createElement("div");
-    toast.className = "bg-blue-700 text-white px-4 py-2 rounded shadow-lg animate-slide-in-right";
-    toast.textContent = `🔔 ${pred.class.toUpperCase()} - ${(pred.confidence * 100).toFixed(1)}%`;
-    toastContainer.appendChild(toast);
-    setTimeout(() => {
-      toast.classList.add("opacity-0");
-      setTimeout(() => toast.remove(), 500);
-    }, 3000);
-  });
-}
-
-// Download ZIP
-downloadBtn.addEventListener("click", async () => {
-  if (!latestImageBlob) return alert("No captured image available!");
-
-  const historyText = [...historyList.children].map(li => li.textContent).join("\n");
-
-  const zip = new JSZip();
-  zip.file("detection-history.txt", historyText);
-  zip.file("captured-image.jpg", latestImageBlob);
-
-  const zipBlob = await zip.generateAsync({ type: "blob" });
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(zipBlob);
-  a.download = `fruit-detection-${Date.now()}.zip`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(a.href);
-});
-
-// Reset
-resetBtn.addEventListener("click", () => {
-  predictionList.innerHTML = '';
-  historyList.innerHTML = '';
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  latestImageBlob = null;
-});
-
-// Register Service Worker
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('service-worker.js');
-}
-
-startCamera(currentCamera);
+    // Optional: register service worker
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('service-worker.js');
+    }
   </script>
-
-<!-- service-worker.js -->
-  <script>
-    self.addEventListener('install', event => {
-  self.skipWaiting();
-});
-
-self.addEventListener('fetch', () => {});
-  </script>
-
 </body>
 </html>
