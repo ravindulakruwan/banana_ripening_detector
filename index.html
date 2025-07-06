@@ -2,8 +2,11 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Fresh Checker</title>
+  <title>🍌 Fruit Ripeness Detector</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="icon.png" />
+  <meta name="theme-color" content="#111827" />
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <style>
@@ -18,17 +21,23 @@
 </head>
 <body class="bg-gray-900 text-white min-h-screen p-4">
 
+  <!-- Install Prompt Banner -->
+  <div id="installBanner" class="fixed bottom-4 left-4 right-4 mx-auto max-w-md bg-yellow-400 text-black rounded-lg shadow-lg p-4 flex justify-between items-center hidden z-50">
+    <span>📲 Install this app?</span>
+    <button id="installBtn" class="bg-black text-yellow-400 px-4 py-1 rounded hover:bg-gray-800">Install</button>
+  </div>
+
   <!-- Toasts -->
   <div id="toast-container" class="fixed top-4 right-4 z-50 space-y-2"></div>
 
   <header class="text-center mb-6">
-    <h1 class="text-3xl font-bold text-yellow-400">Banana Ripeness Detector</h1>
-    <p class="text-gray-400 mt-1 text-sm">Project By TP53 Group Students (Capture a photo → Detect ripeness → Download results)</p>
+    <h1 class="text-3xl font-bold text-yellow-400">🍌 Fruit Ripeness Detector</h1>
+    <p class="text-gray-400 mt-1 text-sm">Capture a photo → Detect ripeness → Download results</p>
   </header>
 
   <main class="flex flex-col lg:flex-row gap-6 max-w-7xl mx-auto items-start">
 
-    <!-- Camera Section -->
+    <!-- Camera -->
     <div class="w-full max-w-[640px] space-y-4">
       <div class="relative aspect-video border-4 border-yellow-400 rounded-lg overflow-hidden w-full">
         <video id="video" autoplay playsinline class="absolute w-full h-full object-cover"></video>
@@ -41,22 +50,19 @@
       </div>
     </div>
 
-    <!-- Sidebar -->
+    <!-- Results & History -->
     <div class="w-full lg:w-[320px] space-y-6">
 
-      <!-- Predictions -->
       <section class="bg-gray-800 p-4 rounded border border-yellow-400">
         <h2 class="text-xl font-semibold text-yellow-400 mb-2">🧠 Predictions</h2>
         <ul id="prediction-list" class="space-y-2 text-sm"></ul>
       </section>
 
-      <!-- History -->
       <section class="bg-gray-800 p-4 rounded border border-green-500 max-h-[250px] overflow-y-auto">
         <h2 class="text-xl font-semibold text-green-400 mb-2">📜 Detection History</h2>
         <ul id="history-list" class="space-y-2 text-xs"></ul>
       </section>
 
-      <!-- Controls -->
       <div class="flex flex-col sm:flex-row gap-3">
         <button id="download-btn" class="bg-green-500 hover:bg-green-600 text-white py-2 px-4 rounded w-full">⬇️ Download Image & History</button>
         <button id="reset-btn" class="bg-red-500 hover:bg-red-600 text-white py-2 px-4 rounded w-full">🗑️ Reset</button>
@@ -64,17 +70,44 @@
     </div>
   </main>
 
+<!-- manifest.json -->
+  <script>
+    {
+  "name": "Fruit Ripeness Detector",
+  "short_name": "FruitDetector",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#111827",
+  "theme_color": "#111827",
+  "icons": [
+    {
+      "src": "icon.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icon.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
+  </script>
+
+<!-- script.js -->
   <script>
     let currentCamera = 'environment';
 let stream = null;
 let track = null;
 let torchOn = false;
-
 let latestImageBlob = null;
 
 const video = document.getElementById("video");
 const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext("2d");
+
+const installBanner = document.getElementById("installBanner");
+const installBtn = document.getElementById("installBtn");
 
 const switchBtn = document.getElementById("switch-camera-btn");
 const flashBtn = document.getElementById("toggle-flash-btn");
@@ -85,6 +118,23 @@ const predictionList = document.getElementById("prediction-list");
 const historyList = document.getElementById("history-list");
 const downloadBtn = document.getElementById("download-btn");
 const resetBtn = document.getElementById("reset-btn");
+
+// PWA INSTALL PROMPT
+let deferredPrompt = null;
+window.addEventListener("beforeinstallprompt", (e) => {
+  e.preventDefault();
+  deferredPrompt = e;
+  installBanner.classList.remove("hidden");
+});
+
+installBtn.addEventListener("click", async () => {
+  if (deferredPrompt) {
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === "accepted") installBanner.classList.add("hidden");
+    deferredPrompt = null;
+  }
+});
 
 // Start Camera
 async function startCamera(facingMode = 'environment') {
@@ -108,7 +158,6 @@ async function startCamera(facingMode = 'environment') {
 
     canvas.classList.add("hidden");
     video.classList.remove("hidden");
-
   } catch (err) {
     alert("Camera error: " + err.message);
   }
@@ -125,7 +174,7 @@ async function toggleFlashlight() {
   }
 }
 
-// Switch Camera
+// Camera Controls
 switchBtn.addEventListener("click", () => {
   currentCamera = currentCamera === "user" ? "environment" : "user";
   startCamera(currentCamera);
@@ -133,7 +182,7 @@ switchBtn.addEventListener("click", () => {
 
 flashBtn.addEventListener("click", toggleFlashlight);
 
-// Capture and Detect
+// Capture + Detect
 captureBtn.addEventListener("click", async () => {
   if (!track) return;
 
@@ -175,7 +224,7 @@ captureBtn.addEventListener("click", async () => {
   reader.readAsDataURL(blob);
 });
 
-// Draw Predictions
+// Drawing + UI
 function drawPredictions(preds) {
   preds.forEach(pred => {
     const { x, y, width, height, class: label, confidence } = pred;
@@ -188,7 +237,6 @@ function drawPredictions(preds) {
   });
 }
 
-// Update UI
 function updatePredictionList(preds) {
   predictionList.innerHTML = '';
   preds.forEach(pred => {
@@ -231,7 +279,7 @@ function showAlerts(preds) {
   });
 }
 
-// Download Image + History
+// Download ZIP
 downloadBtn.addEventListener("click", async () => {
   if (!latestImageBlob) return alert("No captured image available!");
 
@@ -259,9 +307,22 @@ resetBtn.addEventListener("click", () => {
   latestImageBlob = null;
 });
 
-// Start camera on load
-startCamera(currentCamera);
+// Register Service Worker
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('service-worker.js');
+}
 
+startCamera(currentCamera);
   </script>
+
+<!-- service-worker.js -->
+  <script>
+    self.addEventListener('install', event => {
+  self.skipWaiting();
+});
+
+self.addEventListener('fetch', () => {});
+  </script>
+
 </body>
 </html>
