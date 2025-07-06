@@ -2,135 +2,68 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Fruit Ripeness Detector</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <link rel="manifest" href="manifest.json" />
-  <meta name="theme-color" content="#111827" />
-  <link rel="icon" href="icon.png" />
+  <title>Fresh Checker</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <style>
-    @keyframes slide-up {
-      from { transform: translateY(100%); opacity: 0; }
-      to   { transform: translateY(0); opacity: 1; }
+    @keyframes slide-in-right {
+      from { transform: translateX(100%); opacity: 0; }
+      to   { transform: translateX(0);   opacity: 1; }
     }
-    .animate-slide-up {
-      animation: slide-up 0.4s ease-out;
+    .animate-slide-in-right {
+      animation: slide-in-right 0.4s ease-out;
     }
   </style>
 </head>
-<body class="bg-gray-900 text-white min-h-screen flex flex-col items-center justify-start p-4 pt-6">
+<body class="bg-gray-900 text-white min-h-screen p-4">
 
-  <h1 class="text-3xl font-bold text-yellow-400 mb-2 text-center">🍌 Fruit Ripeness Detector</h1>
-  <p class="text-gray-300 text-center mb-6 max-w-md">Use your camera to detect fruit ripeness. You can install this app for faster access.</p>
+  <!-- Toasts -->
+  <div id="toast-container" class="fixed top-4 right-4 z-50 space-y-2"></div>
 
-  <!-- Camera Section -->
-  <div class="w-full max-w-md bg-gray-800 p-4 rounded-xl shadow mb-4">
-    <video id="video" class="w-full rounded" autoplay playsinline></video>
-    <div class="flex justify-between items-center mt-4">
-      <button id="captureBtn" class="bg-green-600 hover:bg-green-700 px-4 py-2 rounded text-white">Capture</button>
-      <button id="switchBtn" class="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded text-white">Switch Camera</button>
-      <button id="flashBtn" class="bg-yellow-600 hover:bg-yellow-700 px-4 py-2 rounded text-white">Toggle Flash</button>
+  <header class="text-center mb-6">
+    <h1 class="text-3xl font-bold text-yellow-400">Banana Ripeness Detector</h1>
+    <p class="text-gray-400 mt-1 text-sm">Project By TP53 Group Students(Capture a photo → Detect ripeness → Download results)</p>
+  </header>
+
+  <main class="flex flex-col lg:flex-row gap-6 max-w-7xl mx-auto items-start">
+
+    <!-- Camera Section -->
+    <div class="w-full max-w-[640px] space-y-4">
+      <div class="relative aspect-video border-4 border-yellow-400 rounded-lg overflow-hidden w-full">
+        <video id="video" autoplay playsinline class="absolute w-full h-full object-cover"></video>
+        <canvas id="canvas" class="absolute w-full h-full hidden"></canvas>
+      </div>
+      <div class="flex flex-wrap gap-3">
+        <button id="switch-camera-btn" class="bg-indigo-500 hover:bg-indigo-600 text-white px-4 py-2 rounded w-full sm:w-auto">🔄 Switch Camera</button>
+        <button id="toggle-flash-btn" class="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded w-full sm:w-auto hidden">🔦 Toggle Flashlight</button>
+        <button id="capture-btn" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded w-full sm:w-auto">📸 Capture & Detect</button>
+      </div>
     </div>
-  </div>
 
-  <canvas id="canvas" class="hidden"></canvas>
-  <div id="result" class="text-center mt-4 text-lg font-medium text-green-400"></div>
+    <!-- Sidebar -->
+    <div class="w-full lg:w-[320px] space-y-6">
 
-  <!-- Install Recommendation Popup -->
-  <div id="installBanner" class="fixed bottom-4 left-4 right-4 max-w-sm mx-auto bg-yellow-300 text-black p-4 rounded-lg shadow-lg flex justify-between items-center hidden animate-slide-up z-50">
-    <span class="text-sm font-medium">📲 Install this app on your device?</span>
-    <button id="installBtn" class="ml-4 bg-black text-yellow-300 px-3 py-1 rounded hover:bg-gray-800">Install</button>
-  </div>
+      <!-- Predictions -->
+      <section class="bg-gray-800 p-4 rounded border border-yellow-400">
+        <h2 class="text-xl font-semibold text-yellow-400 mb-2">🧠 Predictions</h2>
+        <ul id="prediction-list" class="space-y-2 text-sm"></ul>
+      </section>
 
-  <script>
-    // Camera handling
-    const video = document.getElementById("video");
-    const canvas = document.getElementById("canvas");
-    const result = document.getElementById("result");
-    const captureBtn = document.getElementById("captureBtn");
-    const switchBtn = document.getElementById("switchBtn");
-    const flashBtn = document.getElementById("flashBtn");
+      <!-- History -->
+      <section class="bg-gray-800 p-4 rounded border border-green-500 max-h-[250px] overflow-y-auto">
+        <h2 class="text-xl font-semibold text-green-400 mb-2">📜 Detection History</h2>
+        <ul id="history-list" class="space-y-2 text-xs"></ul>
+      </section>
 
-    let currentStream;
-    let usingFront = false;
-    let track;
+      <!-- Controls -->
+      <div class="flex flex-col sm:flex-row gap-3">
+        <button id="download-btn" class="bg-green-500 hover:bg-green-600 text-white py-2 px-4 rounded w-full">⬇️ Download Image & History</button>
+        <button id="reset-btn" class="bg-red-500 hover:bg-red-600 text-white py-2 px-4 rounded w-full">🗑️ Reset</button>
+      </div>
+    </div>
+  </main>
 
-    async function startCamera() {
-      if (currentStream) {
-        currentStream.getTracks().forEach(track => track.stop());
-      }
-
-      const constraints = {
-        video: {
-          facingMode: usingFront ? "user" : "environment"
-        }
-      };
-
-      try {
-        currentStream = await navigator.mediaDevices.getUserMedia(constraints);
-        video.srcObject = currentStream;
-        track = currentStream.getVideoTracks()[0];
-      } catch (err) {
-        console.error("Error accessing camera:", err);
-      }
-    }
-
-    switchBtn.addEventListener("click", () => {
-      usingFront = !usingFront;
-      startCamera();
-    });
-
-    flashBtn.addEventListener("click", async () => {
-      if (!track) return;
-      const capabilities = track.getCapabilities();
-      if (capabilities.torch) {
-        const settings = track.getSettings();
-        track.applyConstraints({
-          advanced: [{ torch: !settings.torch }]
-        });
-      } else {
-        alert("Flash not supported on this device.");
-      }
-    });
-
-    captureBtn.addEventListener("click", () => {
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      canvas.getContext("2d").drawImage(video, 0, 0);
-      const dataURL = canvas.toDataURL("image/jpeg");
-
-      // Mock detection result (replace this with your detection API call)
-      result.textContent = "🟢 Detected: Ripe banana";
-    });
-
-    startCamera();
-  </script>
-
-  <script>
-    // PWA Install Popup
-    let deferredPrompt;
-    const banner = document.getElementById("installBanner");
-    const installBtn = document.getElementById("installBtn");
-
-    window.addEventListener("beforeinstallprompt", (e) => {
-      e.preventDefault();
-      deferredPrompt = e;
-      banner.classList.remove("hidden");
-    });
-
-    installBtn.addEventListener("click", async () => {
-      if (deferredPrompt) {
-        deferredPrompt.prompt();
-        const result = await deferredPrompt.userChoice;
-        console.log(result.outcome === "accepted" ? "Installed" : "Dismissed");
-        banner.classList.add("hidden");
-        deferredPrompt = null;
-      }
-    });
-
-    if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.register("service-worker.js");
-    }
-  </script>
+  <script src="script.js"></script>
 </body>
 </html>
