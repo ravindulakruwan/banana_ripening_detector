@@ -2,7 +2,7 @@
     "name": "Fresh Checker",
     "short_name": "Fresh Checker",
     "description": "Detect fruit ripeness with your camera.",
-    "start_url": "/",
+    "start_url": "",
     "display": "standalone",
     "background_color": "#1F2937",
     "theme_color": "#FBBF24",
