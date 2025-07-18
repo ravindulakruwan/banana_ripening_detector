@@ -1,467 +1,499 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8" />
-    <title>Fresh Checker</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="manifest" href="manifest.json" />
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black" />
-    <meta name="apple-mobile-web-app-title" content="Fresh Checker" />
-    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
-    <script src="sw.js"></script>
+  <meta charset="UTF-8" />
+  <title>Fresh Checker</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="sw.js"></script>
+  <style>
+    @keyframes slide-in-right {
+      from { transform: translateX(100%); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+    .animate-slide-in-right {
+      animation: slide-in-right 0.4s ease-out;
+    }
 
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-    <style>
-        @keyframes slide-in-right {
-            from { transform: translateX(100%); opacity: 0; }
-            to   { transform: translateX(0);   opacity: 1; }
-        }
-        .animate-slide-in-right {
-            animation: slide-in-right 0.4s ease-out;
-        }
-
-        /* Border Edge Lighting for Install Button */
-        .install-button-glow {
-            position: relative;
-            overflow: hidden;
-            background-color: #10B981; /* Tailwind green-500 */
-        }
-        .install-button-glow::before {
-            content: '';
-            position: absolute;
-            top: -50%;
-            left: -50%;
-            width: 200%;
-            height: 200%;
-            background: conic-gradient(from 0deg, transparent 0% 30%, #34D399, #10B981, transparent 70% 100%);
-            animation: rotate 4s linear infinite;
-            z-index: 0;
-        }
-        .install-button-glow span {
-            position: relative;
-            z-index: 1;
-        }
-        @keyframes rotate {
-            to { transform: rotate(360deg); }
-        }
-        .install-button-glow:hover::before {
-            animation-play-state: paused; /* Stop rotation on hover for a subtle effect */
-        }
-    </style>
+    @keyframes border-light {
+      0% { border-color: #10B981; } /* Green-500 */
+      50% { border-color: #34D399; } /* Green-400 */
+      100% { border-color: #10B981; }
+    }
+    .border-light-animation {
+      animation: border-light 1.5s infinite alternate;
+    }
+    .install-app-button {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background-color: #10B981; /* Tailwind Green-500 */
+      color: white;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-size: 1.1rem;
+      font-weight: bold;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+      z-index: 1000;
+      display: none; /* Hidden by default */
+      border: 3px solid transparent; /* Initial transparent border for animation */
+      transition: background-color 0.3s ease;
+    }
+    .install-app-button:hover {
+      background-color: #059669; /* Darker green on hover */
+    }
+    @media (min-width: 1024px) {
+      .lg\:w-sidebar {
+        width: 320px;
+      }
+    }
+  </style>
 </head>
-<body class="bg-gray-900 text-white min-h-screen p-4 flex flex-col">
+<body class="bg-gray-900 text-white min-h-screen p-4 font-sans antialiased">
 
-    <div id="toast-container" class="fixed top-4 right-4 z-50 space-y-2"></div>
+  <div id="toast-container" class="fixed top-4 right-4 z-50 space-y-2"></div>
 
-    <header class="text-center mb-6">
-        <h1 class="text-3xl sm:text-4xl font-bold text-yellow-400">Banana Ripeness Detector</h1>
-        <p class="text-gray-400 mt-1 text-sm sm:text-base">Project By TP53 Group Students (Capture a photo → Detect ripeness → Download results)</p>
-    </header>
+  <header class="text-center mb-6">
+    <h1 class="text-3xl sm:text-4xl font-extrabold text-yellow-400 drop-shadow-lg">Fruit Ripeness Detector 🍎</h1>
+    <p class="text-gray-400 mt-2 text-sm sm:text-base">Project By TP53 Group Students (Capture a photo → Detect ripeness → Download results)</p>
+  </header>
 
-    <main class="flex flex-col lg:flex-row gap-6 max-w-7xl mx-auto items-start flex-grow w-full">
+  <main class="flex flex-col lg:flex-row gap-6 max-w-7xl mx-auto items-start">
 
-        <div class="w-full lg:w-2/3 max-w-[640px] mx-auto lg:mx-0 space-y-4">
-            <div class="relative aspect-video border-4 border-yellow-400 rounded-lg overflow-hidden w-full">
-                <video id="video" autoplay playsinline class="absolute w-full h-full object-cover"></video>
-                <canvas id="canvas" class="absolute w-full h-full hidden"></canvas>
-            </div>
-            <div class="flex flex-col sm:flex-row flex-wrap gap-3">
-                <button id="switch-camera-btn" class="bg-indigo-500 hover:bg-indigo-600 text-white px-4 py-2 rounded w-full sm:w-auto flex-1">🔄 Switch Camera</button>
-                <button id="toggle-flash-btn" class="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded w-full sm:w-auto flex-1 hidden">🔦 Toggle Flashlight</button>
-                <button id="capture-btn" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded w-full sm:w-auto flex-1">📸 Capture & Detect</button>
-            </div>
-        </div>
+    <div class="w-full lg:w-3/5 xl:w-2/3 max-w-[640px] space-y-4 mx-auto lg:mx-0">
+      <div class="relative aspect-video border-4 border-yellow-400 rounded-lg overflow-hidden w-full shadow-lg bg-gray-800">
+        <video id="video" autoplay playsinline class="absolute w-full h-full object-cover"></video>
+        <canvas id="canvas" class="absolute w-full h-full hidden"></canvas>
+      </div>
+      <div class="flex flex-wrap gap-3 justify-center sm:justify-start">
+        <button id="switch-camera-btn" class="flex-1 sm:flex-none bg-indigo-500 hover:bg-indigo-600 text-white px-5 py-2.5 rounded-lg shadow-md transition transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:ring-opacity-75">🔄 Switch Camera</button>
+        <button id="toggle-flash-btn" class="flex-1 sm:flex-none bg-yellow-500 hover:bg-yellow-600 text-white px-5 py-2.5 rounded-lg shadow-md transition transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:ring-opacity-75 hidden">🔦 Toggle Flashlight</button>
+        <button id="capture-btn" class="flex-1 sm:flex-none bg-green-600 hover:bg-green-700 text-white px-5 py-2.5 rounded-lg shadow-md transition transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-opacity-75">📸 Capture & Detect</button>
+      </div>
+    </div>
 
-        <div class="w-full lg:w-1/3 space-y-6">
+    <div class="w-full lg:w-2/5 xl:w-1/3 lg:w-sidebar space-y-6">
 
-            <section class="bg-gray-800 p-4 rounded border border-yellow-400">
-                <h2 class="text-xl font-semibold text-yellow-400 mb-2">🧠 Predictions</h2>
-                <ul id="prediction-list" class="space-y-2 text-sm">
-                    <li class="text-gray-400">No detections yet. Capture an image!</li>
-                </ul>
-            </section>
+      <section class="bg-gray-800 p-5 rounded-lg border border-yellow-400 shadow-xl">
+        <h2 class="text-xl font-semibold text-yellow-400 mb-3 flex items-center">🧠 Predictions</h2>
+        <ul id="prediction-list" class="space-y-3 text-sm">
+          <li class="text-gray-400">No detections yet.</li>
+        </ul>
+      </section>
 
-            <section class="bg-gray-800 p-4 rounded border border-green-500 max-h-[250px] overflow-y-auto">
-                <h2 class="text-xl font-semibold text-green-400 mb-2">📜 Detection History</h2>
-                <ul id="history-list" class="space-y-2 text-xs">
-                    <li class="text-gray-400">History will appear here.</li>
-                </ul>
-            </section>
+      <section class="bg-gray-800 p-5 rounded-lg border border-green-500 max-h-[280px] overflow-y-auto shadow-xl">
+        <h2 class="text-xl font-semibold text-green-400 mb-3 flex items-center">📜 Detection History</h2>
+        <ul id="history-list" class="space-y-3 text-xs">
+          <li class="text-gray-400">History will appear here.</li>
+        </ul>
+      </section>
 
-            <div class="flex flex-col sm:flex-row gap-3">
-                <button id="download-btn" class="bg-green-500 hover:bg-green-600 text-white py-2 px-4 rounded w-full flex-1">⬇️ Download Image & History</button>
-                <button id="reset-btn" class="bg-red-500 hover:bg-red-600 text-white py-2 px-4 rounded w-full flex-1">🗑️ Reset</button>
-            </div>
-            <div id="install-app-container" class="hidden">
-                <button id="install-button" class="install-button-glow bg-green-500 hover:bg-green-600 text-white py-3 px-4 rounded w-full text-lg font-semibold relative overflow-hidden">
-                    <span>✨ Install Fresh Checker App ✨</span>
-                </button>
-            </div>
-        </div>
-    </main>
+      <div class="flex flex-col sm:flex-row gap-3">
+        <button id="download-btn" class="flex-1 bg-green-500 hover:bg-green-600 text-white py-3 px-4 rounded-lg shadow-md transition transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-green-400 focus:ring-opacity-75">⬇️ Download Image & History</button>
+        <button id="reset-btn" class="flex-1 bg-red-500 hover:bg-red-600 text-white py-3 px-4 rounded-lg shadow-md transition transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-opacity-75">🗑️ Reset</button>
+      </div>
+    </div>
+  </main>
 
-    <footer class="text-center p-4 mt-6 text-sm text-gray-400">
-        <p>© 2025 TeamTP53. All rights reserved.</p>
-        <p>This website and its content are the property of TeamTP53. Unauthorized use is prohibited.</p>
-    </footer>
+  <button id="install-app-button" class="install-app-button border-light-animation">
+    Install App ✨
+  </button>
 
-    <script>
-        let currentCamera = 'environment';
-        let stream = null;
-        let track = null;
-        let torchOn = false;
-        let latestImageBlob = null;
-        let deferredPrompt; // For PWA installation
+  <script>
+    let currentCamera = 'environment';
+    let stream = null;
+    let track = null;
+    let torchOn = false;
 
-        const video = document.getElementById("video");
-        const canvas = document.getElementById("canvas");
-        const ctx = canvas.getContext("2d");
+    let latestImageBlob = null;
+    let deferredPrompt = null; // For PWA installation
 
-        const switchBtn = document.getElementById("switch-camera-btn");
-        const flashBtn = document.getElementById("toggle-flash-btn");
-        const captureBtn = document.getElementById("capture-btn");
-        const toastContainer = document.getElementById("toast-container");
+    const video = document.getElementById("video");
+    const canvas = document.getElementById("canvas");
+    const ctx = canvas.getContext("2d");
 
-        const predictionList = document.getElementById("prediction-list");
-        const historyList = document.getElementById("history-list");
-        const downloadBtn = document.getElementById("download-btn");
-        const resetBtn = document.getElementById("reset-btn");
-        const installButton = document.getElementById("install-button");
-        const installAppContainer = document.getElementById("install-app-container");
+    const switchBtn = document.getElementById("switch-camera-btn");
+    const flashBtn = document.getElementById("toggle-flash-btn");
+    const captureBtn = document.getElementById("capture-btn");
+    const toastContainer = document.getElementById("toast-container");
 
-        // --- PWA Installation Logic ---
-        window.addEventListener('beforeinstallprompt', (e) => {
-            // Prevent the mini-infobar from appearing on mobile
-            e.preventDefault();
-            // Stash the event so it can be triggered later.
-            deferredPrompt = e;
-            // Update UI to notify the user they can add to home screen
-            installAppContainer.classList.remove('hidden');
+    const predictionList = document.getElementById("prediction-list");
+    const historyList = document.getElementById("history-list");
+    const downloadBtn = document.getElementById("download-btn");
+    const resetBtn = document.getElementById("reset-btn");
+    const installAppBtn = document.getElementById("install-app-button");
+
+    // Start Camera
+    async function startCamera(facingMode = 'environment') {
+      if (stream) {
+        stream.getTracks().forEach(t => t.stop());
+      }
+      flashBtn.classList.add("hidden");
+      torchOn = false;
+
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode, width: { ideal: 1280 }, height: { ideal: 720 } },
+          audio: false
         });
 
-        installButton.addEventListener('click', async () => {
-            if (deferredPrompt) {
-                // Show the install prompt
-                deferredPrompt.prompt();
-                // Wait for the user to respond to the prompt
-                const { outcome } = await deferredPrompt.userChoice;
-                // We've used the prompt, and can't use it again, so clear it.
-                deferredPrompt = null;
-                // Hide the button once installed or dismissed
-                if (outcome === 'accepted') {
-                    showToast("🎉 App installed successfully!");
-                    installAppContainer.classList.add('hidden');
-                } else {
-                    showToast("❌ App installation dismissed.");
-                }
-            } else {
-                showToast("App is already installed or cannot be installed at this time.");
-            }
+        video.srcObject = stream;
+        track = stream.getVideoTracks()[0];
+
+        // Check for torch capabilities
+        const caps = track.getCapabilities();
+        if (facingMode === 'environment' && caps.torch) {
+          flashBtn.classList.remove("hidden");
+        }
+
+        canvas.classList.add("hidden");
+        video.classList.remove("hidden");
+        video.play(); // Ensure video plays
+      } catch (err) {
+        showToast("Camera access denied or error: " + err.message, "bg-red-700");
+        console.error("Camera error: ", err);
+      }
+    }
+
+    // Flashlight
+    async function toggleFlashlight() {
+      if (!track) return;
+      try {
+        if (track.getCapabilities().torch) {
+          torchOn = !torchOn;
+          await track.applyConstraints({ advanced: [{ torch: torchOn }] });
+          showToast(`Flashlight ${torchOn ? 'on' : 'off'}`, "bg-yellow-600");
+        } else {
+          showToast("Flashlight not supported on this device/camera.", "bg-orange-500");
+        }
+      } catch (err) {
+        showToast("Error toggling flashlight: " + err.message, "bg-red-700");
+        console.error("Flashlight error: ", err);
+      }
+    }
+
+    // Switch Camera
+    switchBtn.addEventListener("click", () => {
+      currentCamera = currentCamera === "user" ? "environment" : "user";
+      startCamera(currentCamera);
+      showToast(`Switched to ${currentCamera === "user" ? "front" : "back"} camera`, "bg-indigo-600");
+    });
+
+    flashBtn.addEventListener("click", toggleFlashlight);
+
+    // Capture and Detect
+    captureBtn.addEventListener("click", async () => {
+      if (!track) {
+        showToast("Camera not ready. Please allow camera access.", "bg-red-700");
+        return;
+      }
+
+      // Stop video stream temporarily to prevent conflicts and ensure a clear capture
+      if (stream) {
+        stream.getTracks().forEach(t => t.stop());
+      }
+      video.classList.add("hidden"); // Hide video
+      canvas.classList.remove("hidden"); // Show canvas
+
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height); // Draw frame on canvas
+
+      const blob = await new Promise(res => canvas.toBlob(res, "image/jpeg", 0.9)); // Quality 0.9
+      latestImageBlob = blob;
+
+      const reader = new FileReader();
+      reader.onloadend = async () => {
+        const base64Image = reader.result.replace(/^data:image\/jpeg;base64,/, '');
+
+        // Turn off torch if it was on
+        if (torchOn && track && track.getCapabilities().torch) {
+          await track.applyConstraints({ advanced: [{ torch: false }] });
+          torchOn = false;
+        }
+
+        showToast("Detecting ripeness...", "bg-blue-500");
+        try {
+          const res = await fetch("https://serverless.roboflow.com/fruit-ripening-process/2?api_key=Ur7hXZ8pVPs9vpScKv7w", {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: base64Image
+          });
+
+          if (!res.ok) {
+            throw new Error(`HTTP error! status: ${res.status}`);
+          }
+
+          const data = await res.json();
+          const predictions = data.predictions || [];
+
+          drawPredictions(predictions);
+          updatePredictionList(predictions);
+          updateHistory(predictions);
+          speakDetections(predictions);
+          showAlerts(predictions);
+
+          showToast("Detection complete!", "bg-green-500");
+
+        } catch (error) {
+          console.error("Error during detection:", error);
+          showToast(`Detection failed: ${error.message}`, "bg-red-700");
+        } finally {
+          // Restart camera after a short delay
+          setTimeout(() => startCamera(currentCamera), 2000);
+        }
+      };
+
+      reader.readAsDataURL(blob);
+    });
+
+    // Draw Predictions
+    function drawPredictions(preds) {
+      // Clear previous drawings if any
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height); // Redraw the captured image
+
+      preds.forEach(pred => {
+        const { x, y, width, height, class: label, confidence } = pred;
+        const displayConfidence = (confidence * 100).toFixed(1);
+
+        // Calculate bounding box coordinates
+        const x1 = x - width / 2;
+        const y1 = y - height / 2;
+
+        ctx.strokeStyle = "#00FF00"; // Green color
+        ctx.lineWidth = 3;
+        ctx.strokeRect(x1, y1, width, height);
+
+        ctx.fillStyle = "#00FF00"; // Green color
+        ctx.font = "bold 18px Arial"; // Larger and bold font
+        ctx.shadowColor = "black";
+        ctx.shadowBlur = 5;
+
+        const text = `${label.toUpperCase()} (${displayConfidence}%)`;
+        const textMetrics = ctx.measureText(text);
+        const textWidth = textMetrics.width;
+        const textHeight = parseInt(ctx.font, 10); // Approximation
+
+        // Draw background for text
+        ctx.fillRect(x1, y1 - textHeight - 10, textWidth + 10, textHeight + 8); // Padding
+
+        ctx.fillStyle = "white"; // White text
+        ctx.fillText(text, x1 + 5, y1 - 8); // Position text within background
+        ctx.shadowBlur = 0; // Reset shadow
+      });
+    }
+
+    // Update UI
+    function updatePredictionList(preds) {
+      predictionList.innerHTML = '';
+      if (preds.length === 0) {
+        predictionList.innerHTML = '<li class="text-gray-400">No fruits detected in the image.</li>';
+        return;
+      }
+      preds.forEach(pred => {
+        const li = document.createElement("li");
+        li.className = "bg-gray-700 px-3 py-2 rounded border-l-4 border-yellow-400 flex justify-between items-center animate-slide-in-right";
+        li.innerHTML = `<span>${pred.class.toUpperCase()}</span> <span class="font-bold text-yellow-300">${(pred.confidence * 100).toFixed(1)}%</span>`;
+        predictionList.appendChild(li);
+      });
+    }
+
+    function updateHistory(preds) {
+      if (preds.length === 0) {
+        if (historyList.children.length === 0 || historyList.children[0].textContent === "History will appear here.") {
+          historyList.innerHTML = '<li class="text-gray-400">No history yet.</li>';
+        }
+        return;
+      }
+      // Remove "No history yet." if present
+      if (historyList.children[0] && historyList.children[0].textContent === "History will appear here.") {
+        historyList.innerHTML = '';
+      }
+
+      const time = new Date().toLocaleTimeString();
+      preds.forEach(pred => {
+        const li = document.createElement("li");
+        li.className = "bg-gray-700 px-3 py-2 rounded border-l-4 border-green-500 flex justify-between items-center animate-slide-in-right";
+        li.innerHTML = `<span>[${time}] ${pred.class.toUpperCase()}</span> <span class="font-bold text-green-300">${(pred.confidence * 100).toFixed(1)}%</span>`;
+        historyList.prepend(li);
+        if (historyList.children.length > 50) historyList.removeChild(historyList.lastChild);
+      });
+    }
+
+    function speakDetections(preds) {
+      if ('speechSynthesis' in window) {
+        const utteranceQueue = [];
+        preds.forEach(pred => {
+          let suggestion = "";
+          const ripenessClass = pred.class.toLowerCase();
+          switch (ripenessClass) {
+            case 'freshripe':
+              suggestion = "This fruit is fresh and ripe. Enjoy it now!";
+              break;
+            case 'freshunripe':
+              suggestion = "This fruit is fresh but unripe. It needs more time to ripen.";
+              break;
+            case 'overripe':
+              suggestion = "This fruit is overripe. It might be best for smoothies or baking.";
+              break;
+            case 'ripe':
+              suggestion = "This fruit is perfectly ripe. Great for eating!";
+              break;
+            case 'rotten':
+              suggestion = "This fruit is rotten and not safe to eat. Please discard it.";
+              break;
+            case 'unripe':
+              suggestion = "This fruit is unripe. Store it at room temperature to ripen.";
+              break;
+            default:
+              suggestion = `A ${ripenessClass} fruit was detected.`;
+          }
+          const msgText = `${pred.class} detected with ${(pred.confidence * 100).toFixed(0)} percent confidence. ${suggestion}`;
+          const msg = new SpeechSynthesisUtterance(msgText);
+          msg.lang = "en-US";
+          utteranceQueue.push(msg);
         });
 
-        window.addEventListener('appinstalled', () => {
-            showToast("✅ Fresh Checker installed!");
-            installAppContainer.classList.add('hidden'); // Hide button if already installed
-        });
-
-        // Hide install button if already running as PWA
-        if (window.matchMedia('(display-mode: standalone)').matches || navigator.standalone) {
-            installAppContainer.classList.add('hidden');
+        // Speak utterances one by one
+        function speakNext() {
+          if (utteranceQueue.length > 0) {
+            const currentMsg = utteranceQueue.shift();
+            currentMsg.onend = speakNext; // Speak next when current finishes
+            speechSynthesis.speak(currentMsg);
+          }
         }
+        speakNext(); // Start speaking
+      } else {
+        console.warn("Speech Synthesis API not supported in this browser.");
+      }
+    }
 
-        // --- Camera & Detection Logic ---
-        async function startCamera(facingMode = 'environment') {
-            if (stream) stream.getTracks().forEach(t => t.stop());
-            flashBtn.classList.add("hidden");
-            torchOn = false;
+    function showToast(message, bgColorClass = "bg-blue-700") {
+      const toast = document.createElement("div");
+      toast.className = `p-3 rounded-lg shadow-xl text-white text-sm font-semibold animate-slide-in-right ${bgColorClass}`;
+      toast.textContent = message;
+      toastContainer.appendChild(toast);
 
-            try {
-                stream = await navigator.mediaDevices.getUserMedia({
-                    video: { facingMode, width: { ideal: 640 }, height: { ideal: 480 } },
-                    audio: false
-                });
+      setTimeout(() => {
+        toast.classList.remove("animate-slide-in-right");
+        toast.classList.add("opacity-0", "transition-opacity", "duration-500", "ease-out");
+        setTimeout(() => toast.remove(), 500);
+      }, 3000);
+    }
 
-                video.srcObject = stream;
-                track = stream.getVideoTracks()[0];
+    function showAlerts(preds) {
+      preds.forEach(pred => {
+        let toastMessage = `🔔 ${pred.class.toUpperCase()} - ${(pred.confidence * 100).toFixed(1)}%`;
+        let toastColorClass = "bg-blue-700"; // Default
 
-                const caps = track.getCapabilities();
-                if (facingMode === 'environment' && caps.torch) {
-                    flashBtn.classList.remove("hidden");
-                }
-
-                canvas.classList.add("hidden");
-                video.classList.remove("hidden");
-
-            } catch (err) {
-                showToast(`Camera error: ${err.message}`, 'bg-red-700');
-                console.error("Camera error:", err);
-            }
+        // Customize toast color based on ripeness
+        const ripeness = pred.class.toLowerCase();
+        if (ripeness.includes("ripe")) {
+          toastColorClass = "bg-green-700";
+        } else if (ripeness.includes("unripe")) {
+          toastColorClass = "bg-orange-600";
+        } else if (ripeness.includes("overripe") || ripeness.includes("rotten")) {
+          toastColorClass = "bg-red-700";
         }
+        showToast(toastMessage, toastColorClass);
+      });
+    }
 
-        async function toggleFlashlight() {
-            if (!track) return;
-            try {
-                torchOn = !torchOn;
-                await track.applyConstraints({ advanced: [{ torch: torchOn }] });
-            } catch (err) {
-                showToast("Flashlight not supported on this device.", 'bg-red-700');
-                console.error("Flashlight error:", err);
-            }
+    // Download Image + History
+    downloadBtn.addEventListener("click", async () => {
+      if (!latestImageBlob) {
+        showToast("No captured image available to download!", "bg-orange-500");
+        return;
+      }
+
+      showToast("Preparing download...", "bg-purple-500");
+      const historyText = [...historyList.children].map(li => li.textContent).join("\n");
+      const zip = new JSZip();
+
+      // Ensure the history file contains the "No history yet." if no detections were made
+      const finalHistoryText = historyText.trim() === "" || historyText.includes("No history yet.")
+                               ? "No fruit detection history recorded for this session."
+                               : historyText;
+
+      zip.file("detection-history.txt", finalHistoryText);
+      zip.file("captured-image.jpg", latestImageBlob);
+
+      try {
+        const zipBlob = await zip.generateAsync({ type: "blob" });
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(zipBlob);
+        a.download = `fruit-detection-${new Date().toISOString().slice(0, 10)}.zip`; // Format: fruit-detection-YYYY-MM-DD.zip
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(a.href);
+        showToast("Download complete! 🎉", "bg-green-500");
+      } catch (error) {
+        showToast("Failed to create download file.", "bg-red-700");
+        console.error("Zip generation error:", error);
+      }
+    });
+
+    // Reset
+    resetBtn.addEventListener("click", () => {
+      predictionList.innerHTML = '<li class="text-gray-400">No detections yet.</li>';
+      historyList.innerHTML = '<li class="text-gray-400">History will appear here.</li>';
+      ctx.clearRect(0, 0, canvas.width, canvas.height); // Clear canvas
+      latestImageBlob = null;
+      startCamera(currentCamera); // Restart camera after reset
+      showToast("Application reset!", "bg-gray-600");
+    });
+
+    // PWA Install Prompt
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredPrompt = e;
+      installAppBtn.style.display = 'block'; // Show install button
+      showToast("Install Fruit Checker as an app!", "bg-purple-600");
+    });
+
+    installAppBtn.addEventListener('click', async () => {
+      if (deferredPrompt) {
+        deferredPrompt.prompt();
+        const { outcome } = await deferredPrompt.userChoice;
+        console.log(`User response to the install prompt: ${outcome}`);
+        if (outcome === 'accepted') {
+          showToast("Fruit Checker installed successfully! 🚀", "bg-green-600");
+        } else {
+          showToast("App installation declined.", "bg-orange-500");
         }
+        deferredPrompt = null;
+        installAppBtn.style.display = 'none'; // Hide button after prompt
+      }
+    });
 
-        switchBtn.addEventListener("click", () => {
-            currentCamera = currentCamera === "user" ? "environment" : "user";
-            startCamera(currentCamera);
-        });
+    // Handle app installed event
+    window.addEventListener('appinstalled', () => {
+      installAppBtn.style.display = 'none'; // Hide install button once installed
+      showToast("Fruit Checker has been installed! 🎉", "bg-green-600");
+    });
 
-        flashBtn.addEventListener("click", toggleFlashlight);
+    // Initial camera start
+    startCamera(currentCamera);
 
-        captureBtn.addEventListener("click", async () => {
-            if (!track) {
-                showToast("Camera not ready. Please allow camera access.", 'bg-red-700');
-                return;
-            }
+    // Register Service Worker for PWA (Optional, but good practice for full PWA)
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js') // Create a sw.js file in your root directory
+          .then(reg => console.log('Service Worker registered!', reg))
+          .catch(err => console.error('Service Worker registration failed:', err));
+      });
+    }
+  </script>
+  <br>
+  <footer style="text-align:center; padding:20px; font-size:14px; color:#f4f4f4;">
+    <p>© 2025 TeamTP53. All rights reserved.</p>
+    <p>This website and its content are the property of TeamTP53. Unauthorized use is prohibited.</p>
+  </footer>
 
-            // Ensure video metadata is loaded before drawing
-            if (video.readyState < video.HAVE_METADATA) {
-                await new Promise(resolve => video.onloadedmetadata = resolve);
-            }
-
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-            canvas.classList.remove("hidden");
-            video.classList.add("hidden");
-
-            showToast("📸 Capturing image...", 'bg-indigo-500');
-
-            const blob = await new Promise(res => canvas.toBlob(res, "image/jpeg", 0.9)); // 0.9 quality
-            latestImageBlob = blob;
-
-            const reader = new FileReader();
-            reader.onloadend = async () => {
-                const base64Image = reader.result.replace(/^data:image\/jpeg;base64,/, '');
-
-                if (torchOn) {
-                    await track.applyConstraints({ advanced: [{ torch: false }] });
-                    torchOn = false;
-                }
-
-                showToast("🧠 Detecting ripeness...", 'bg-blue-500');
-                try {
-                    const res = await fetch("https://serverless.roboflow.com/fruit-ripening-process/2?api_key=Ur7hXZ8pVPs9vpScKv7w", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-                        body: base64Image
-                    });
-
-                    if (!res.ok) {
-                        const errorText = await res.text();
-                        throw new Error(`API error: ${res.status} - ${errorText}`);
-                    }
-
-                    const data = await res.json();
-                    
-                    if (data.predictions && data.predictions.length > 0) {
-                        drawPredictions(data.predictions);
-                        updatePredictionList(data.predictions);
-                        updateHistory(data.predictions);
-                        speakDetections(data.predictions);
-                        showAlerts(data.predictions);
-                        showToast("✅ Detection complete!", 'bg-green-500');
-                    } else {
-                        updatePredictionList([]); // Clear previous predictions
-                        predictionList.innerHTML = '<li class="text-gray-400">No fruit detected. Try again!</li>';
-                        showToast("🔍 No fruit detected. Try a clearer shot!", 'bg-orange-500');
-                        speakSuggestion("No fruit was detected. Please try capturing another image with better lighting or focus.");
-                    }
-
-                } catch (error) {
-                    showToast(`Detection failed: ${error.message}`, 'bg-red-700');
-                    console.error("Detection error:", error);
-                    speakSuggestion("I apologize, there was an error during detection. Please check your internet connection and try again.");
-                } finally {
-                    // Always restart camera after a delay, regardless of detection success
-                    setTimeout(() => startCamera(currentCamera), 2000);
-                }
-            };
-
-            reader.readAsDataURL(blob);
-        });
-
-        function drawPredictions(preds) {
-            // Clear previous drawings if any
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            // Redraw the original image
-            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-            preds.forEach(pred => {
-                const { x, y, width, height, class: label, confidence } = pred;
-
-                // Scale bounding box coordinates if canvas resolution is different from original video
-                const scaleX = canvas.width / video.videoWidth;
-                const scaleY = canvas.height / video.videoHeight;
-
-                const drawX = (x - width / 2) * scaleX;
-                const drawY = (y - height / 2) * scaleY;
-                const drawWidth = width * scaleX;
-                const drawHeight = height * scaleY;
-
-                ctx.strokeStyle = "#00FF00"; // Green
-                ctx.lineWidth = 3;
-                ctx.strokeRect(drawX, drawY, drawWidth, drawHeight);
-
-                ctx.fillStyle = "#00FF00";
-                ctx.font = `${18 * Math.min(scaleX, scaleY)}px Arial`; // Adjust font size based on scale
-                ctx.fillText(`${label} (${(confidence * 100).toFixed(1)}%)`, drawX + 5, drawY + 20);
-            });
-        }
-
-        function updatePredictionList(preds) {
-            predictionList.innerHTML = '';
-            if (preds.length === 0) {
-                predictionList.innerHTML = '<li class="text-gray-400">No detections.</li>';
-                return;
-            }
-            preds.forEach(pred => {
-                const li = document.createElement("li");
-                li.className = "bg-gray-700 px-3 py-1 rounded border-l-4 border-yellow-400 flex justify-between items-center";
-                li.innerHTML = `<span>${pred.class.toUpperCase()}</span> <span class="font-bold text-yellow-300">${(pred.confidence * 100).toFixed(1)}%</span>`;
-                predictionList.appendChild(li);
-            });
-        }
-
-        function updateHistory(preds) {
-            const time = new Date().toLocaleTimeString();
-            preds.forEach(pred => {
-                const li = document.createElement("li");
-                li.className = "bg-gray-700 px-3 py-1 rounded border-l-4 border-green-500 flex justify-between items-center";
-                li.innerHTML = `<span>[${time}] ${pred.class.toUpperCase()}</span> <span class="font-bold text-green-300">${(pred.confidence * 100).toFixed(1)}%</span>`;
-                historyList.prepend(li);
-                // Keep history list from getting too long
-                if (historyList.children.length > 20) historyList.removeChild(historyList.lastChild);
-            });
-        }
-
-        function speakDetections(preds) {
-            if (!('speechSynthesis' in window)) {
-                showToast("Text-to-speech not supported in this browser.", 'bg-red-700');
-                return;
-            }
-            preds.forEach(pred => {
-                const confidence = (pred.confidence * 100).toFixed(0);
-                let message = `${pred.class} detected with ${confidence} percent confidence.`;
-                message += getRipenessSuggestion(pred.class);
-                speakSuggestion(message);
-            });
-        }
-
-        function getRipenessSuggestion(fruitClass) {
-            // Normalize class name to lower case for consistent matching
-            const lowerCaseClass = fruitClass.toLowerCase();
-
-            if (lowerCaseClass.includes("ripe")) {
-                return " This fruit is perfectly ripe and ready to eat! Enjoy its full flavor.";
-            } else if (lowerCaseClass.includes("unripe")) {
-                return " This fruit is still unripe. It needs more time to mature before it's ready. Keep it at room temperature.";
-            } else if (lowerCaseClass.includes("overripe")) {
-                return " This fruit appears overripe. It might be best used for smoothies, baking, or compost.";
-            } else if (lowerCaseClass.includes("partially ripe") || lowerCaseClass.includes("developing")) {
-                return " This fruit is partially ripe. It might be good to consume soon or let it ripen for another day or two.";
-            } else if (lowerCaseClass.includes("rotten") || lowerCaseClass.includes("spoiled")) {
-                return " This fruit appears spoiled and is not safe for consumption. Please discard it.";
-            }
-            return " Ripeness status detected.";
-        }
-
-        function speakSuggestion(text) {
-            const msg = new SpeechSynthesisUtterance(text);
-            msg.lang = "en-US";
-            // Optional: Set voice, pitch, rate
-            // const voices = speechSynthesis.getVoices();
-            // msg.voice = voices.find(voice => voice.name === 'Google US English'); // Example
-            msg.pitch = 1;
-            msg.rate = 1;
-            speechSynthesis.speak(msg);
-        }
-
-        function showAlerts(preds) {
-            preds.forEach(pred => {
-                const toast = document.createElement("div");
-                toast.className = "bg-blue-700 text-white px-4 py-2 rounded shadow-lg animate-slide-in-right";
-                toast.textContent = `🔔 ${pred.class.toUpperCase()} - ${(pred.confidence * 100).toFixed(1)}%`;
-                toastContainer.appendChild(toast);
-                setTimeout(() => {
-                    toast.classList.add("opacity-0");
-                    setTimeout(() => toast.remove(), 500);
-                }, 3000);
-            });
-        }
-
-        function showToast(message, bgColor = 'bg-blue-700', duration = 3000) {
-            const toast = document.createElement("div");
-            toast.className = `${bgColor} text-white px-4 py-2 rounded shadow-lg animate-slide-in-right`;
-            toast.textContent = message;
-            toastContainer.appendChild(toast);
-            setTimeout(() => {
-                toast.classList.add("opacity-0");
-                setTimeout(() => toast.remove(), 500);
-            }, duration);
-        }
-
-        // Download Image + History
-        downloadBtn.addEventListener("click", async () => {
-            if (!latestImageBlob) {
-                showToast("No captured image available to download!", 'bg-orange-500');
-                return;
-            }
-
-            showToast("📦 Preparing download...", 'bg-indigo-500');
-            const historyText = [...historyList.children].map(li => li.textContent).join("\n");
-
-            const zip = new JSZip();
-            zip.file("detection-history.txt", historyText);
-            zip.file("captured-image.jpg", latestImageBlob);
-
-            try {
-                const zipBlob = await zip.generateAsync({ type: "blob" });
-                const a = document.createElement("a");
-                a.href = URL.createObjectURL(zipBlob);
-                a.download = `fruit-detection-${Date.now()}.zip`;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(a.href);
-                showToast("⬇️ Download started!", 'bg-green-500');
-            } catch (error) {
-                showToast(`Download failed: ${error.message}`, 'bg-red-700');
-                console.error("Download error:", error);
-            }
-        });
-
-        // Reset
-        resetBtn.addEventListener("click", () => {
-            predictionList.innerHTML = '<li class="text-gray-400">No detections yet. Capture an image!</li>';
-            historyList.innerHTML = '<li class="text-gray-400">History will appear here.</li>';
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            latestImageBlob = null;
-            showToast("🗑️ Application reset!", 'bg-gray-600');
-            startCamera(currentCamera); // Restart camera after reset
-        });
-
-        // Start camera on load
-        document.addEventListener('DOMContentLoaded', () => {
-            startCamera(currentCamera);
-            // Register service worker for PWA
-            if ('serviceWorker' in navigator) {
-                navigator.serviceWorker.register('sw.js')
-                    .then(() => console.log('Service Worker Registered'))
-                    .catch(error => console.error('Service Worker Registration Failed:', error));
-            }
-        });
-    </script>
 </body>
 </html>
