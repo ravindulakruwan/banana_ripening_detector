@@ -2,7 +2,7 @@
     "name": "Fresh Checker",
     "short_name": "Fresh Checker",
     "description": "Detect fruit ripeness using your camera.",
-    "start_url": "/",
+    "start_url": "/banana_ripening_detector/",
     "display": "standalone",
     "background_color": "#111827",
     "theme_color": "#FBBF24",
