@@ -1,6 +1,6 @@
 {
   "name": "Fruit Ripeness Detector",
-  "short_name": "FruitFresh",
+  "short_name": "Fresh Checker",
   "description": "Detect the ripeness of fruits using your camera.",
   "start_url": "/banana_ripening_detector/",
   "display": "standalone",
