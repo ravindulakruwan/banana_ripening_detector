@@ -1,6 +1,6 @@
 const CACHE_NAME = 'fresh-checker-cache-v1';
 const urlsToCache = [
-    '',
+    '/banana_ripening_detector/',
     'index.html',
     'manifest.json',
     'sw.js',
