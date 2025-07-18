@@ -1,16 +1,16 @@
 const CACHE_NAME = 'fresh-checker-cache-v1';
 const urlsToCache = [
-    '/',
-    '/index.html',
-    '/manifest.json',
-    '/sw.js',
+    '',
+    'index.html',
+    'manifest.json',
+    'sw.js',
     'https://cdn.tailwindcss.com',
     'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js',
     // Add paths to your icons if you create them in an 'icons' folder
-    '/icons/icon-192x192.png',
-    '/icons/icon-512x512.png',
-    '/icons/apple-touch-icon.png', // For iOS
-    '/icons/maskable_icon.png'
+    'icons/icon-192x192.png',
+    'icons/icon-512x512.png',
+    'icons/apple-touch-icon.png', // For iOS
+    'icons/maskable_icon.png'
 ];
 
 self.addEventListener('install', (event) => {
