@@ -1,27 +1,21 @@
 {
-    "name": "Fresh Checker",
-    "short_name": "Fresh Checker",
-    "description": "Detect fruit ripeness with your camera.",
-    "start_url": "/banana_ripening_detector/",
-    "display": "standalone",
-    "background_color": "#1F2937",
-    "theme_color": "#FBBF24",
-    "icons": [
-        {
-            "src": "icons/icon-192x192.png",
-            "sizes": "192x192",
-            "type": "image/png"
-        },
-        {
-            "src": "icons/icon-512x512.png",
-            "sizes": "512x512",
-            "type": "image/png"
-        },
-        {
-            "src": "icons/maskable_icon.png",
-            "sizes": "192x192",
-            "type": "image/png",
-            "purpose": "maskable"
-        }
-    ]
+  "name": "Fruit Ripeness Detector",
+  "short_name": "FruitFresh",
+  "description": "Detect the ripeness of fruits using your camera.",
+  "start_url": "/banana_ripening_detector/",
+  "display": "standalone",
+  "background_color": "#1f2937",
+  "theme_color": "#facc15",
+  "icons": [
+    {
+      "src": "icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
 }
